@@ -1,0 +1,168 @@
+'This script will be run when a command button is clicked inside
+'the spreadsheet where the last days retention performance is
+'recorded (retention performance.xlsx). The user will be prompted
+'to find the file that contains yesterday's data.
+'The script will then iterate through each row of the report,
+'counting how many cancellations were made how many were sent by
+'e-mail and whitemail (post) and how many cancellations were taken
+'that do not count towards retention stats(duplicate accounts etc).
+'It then outputs this information to the retention performance
+'sheet. If any account does not have a cancellation date set that
+'accounts reference number will be added to a list to be checked
+'manually.
+
+'This variable records how many cancelations were sent by e-mail
+Dim EmailCounter As Integer
+
+'This variable records how many cancelations were sent by post
+Dim WhitemailCounter As Integer
+
+'This variable records how many cancelations don't count towards stats
+Dim Exclusions As Integer
+
+'This is the reference for the book selected by the user containing the
+'data that will be processed
+Dim DataBook As Workbook
+
+'The reference for the relevant sheet within DataBook
+Dim DataSheet As Worksheet
+
+'The reference for the sheet where results are recorded
+Dim ResultsSheet As Worksheet
+
+'The variable records the amount of cancellations
+Dim Cancellations As Integer
+
+'Pressing Command Button 1 with text value
+'"Process Cancellations" calls the required subroutines.
+Sub Button1_Click()
+Call OpenDataSheet
+Set DataSheet = DataBook.Worksheets(1)
+Set ResultsSheet = ThisWorkbook.Worksheets(1)
+Call ProcessCancellations
+Call PrintResults
+End Sub
+
+
+
+Sub ProcessCancellations()
+'This sub will iterate through each row between 5 and the last row
+'containing data. It checks if the account referenced in that row
+'has a cancellation date and if not takes the account reference
+'number and adds it to a list in the results sheet. It also calls
+'more subs to gather more data about the cancellation.
+
+Dim rng As Range
+Dim row As Range
+'This variable keeps track of which row the next account number
+'should be added to on the results sheet
+Dim NextFreeCell As Integer
+
+'It starts at 2 as row 1 is used for the header.
+NextFreeCell = 2
+
+WhitemailCounter = 0
+EmailCounter = 0
+Exclusions = 0
+Cancellations = 0
+
+'The last row is found by starting at an arbitrarily large number
+'then pressing ctrl + up
+LastRow = DataSheet.Cells(65536, 2).End(xlUp).row
+
+'The data always starts in cell B6:O6
+Set rng = DataSheet.Range("B6:O" & LastRow)
+For Each row In rng.Rows
+    Cancellations = Cancellations + 1
+    
+'The current row is passed to more subs
+    CountEmail (row.row)
+    CountWhitemail (row.row)
+    CountNonApplicable (row.row)
+    
+'Column 8 is where the cancellation date is recorded, if it is
+'empty the account number is added to a list on the results sheet
+    If DataSheet.Cells(row.row, 8).Value = "" Then
+        ResultsSheet.Cells(NextFreeCell, 1).Value = _
+        DataSheet.Cells(row.row, 2).Value
+        NextFreeCell = NextFreeCell + 1
+    End If
+Next row
+
+End Sub
+
+
+
+Sub PrintResults()
+'This sub prints headers and the data collected on the
+'results page
+
+With ResultsSheet
+.Cells(1, 2).Value = "Cancellations"
+.Cells(2, 2).Value = Cancellations - Exclusions
+.Cells(1, 3).Value = "E-mails"
+.Cells(2, 3).Value = EmailCounter
+.Cells(1, 4).Value = "WhiteMail"
+.Cells(2, 4).Value = WhitemailCounter
+End With
+
+End Sub
+
+
+
+Sub OpenDataSheet()
+'This sub prompt the user to find the file that contains
+'The data to be processed and assigns it to variable DataBook
+
+fileToOpen = Application.GetOpenFilename()
+If fileToOpen <> False Then
+ Set DataBook = Workbooks.Open(fileToOpen)
+End If
+
+End Sub
+
+
+
+Sub CountNonApplicable(row As Integer)
+'This increments the exclusions counter total if the subcase
+'type in column 7 matches one of the excluded subcase types
+
+Dim ExcludedSubCases
+ExcludedSubCases = Array("Deceased", "Duplicate account", _
+     "Couldn't reach")
+     
+'Loop through each excluded sub case type to see if it matches
+For Each SubCase In ExcludedSubCases
+If DataSheet.Cells(row, 7).Value = SubCase Then
+'If it does increment the counter and escape the loop
+    Exclusions = Exclusions + 1
+    Exit For
+End If
+Next SubCase
+
+End Sub
+
+
+
+Sub CountEmail(row As Integer)
+'This increments the e-mail counter total if the case type in
+'column 6 is "Cancellation E-mail"
+
+If DataSheet.Cells(row, 6).Value = "Cancellation E-mail" Then
+        EmailCounter = EmailCounter + 1
+    End If
+End Sub
+
+
+
+Sub CountWhitemail(row As Integer)
+'This increments the whitemail counter total if the case type in
+'column 6 is "Cancellation Whitemail"
+
+If DataSheet.Cells(row, 6).Value = "Cancellation whitemail" Then
+        WhitemailCounter = WhitemailCounter + 1
+    End If
+End Sub
+
+
+
